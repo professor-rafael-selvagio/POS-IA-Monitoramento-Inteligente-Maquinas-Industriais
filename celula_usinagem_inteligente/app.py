@@ -502,27 +502,37 @@ with tab_analise:
                     variavel=var_comp,
                 )
 
-                st.success(
-                    f"✅ **Compatibilidade Aprovada (RF14):** Ambas as máquinas monitoram '{var_comp}' em '{res_e['unidade']}'."
-                )
+                if isinstance(res_e, dict) and "erro" in res_e:
+                    st.warning(f"⚠️ {res_e['erro']}")
+                elif isinstance(res_e, dict):
+                    unidade_comp = res_e.get("unidade", "")
+                    st.success(
+                        f"✅ **Compatibilidade Aprovada (RF14):** Ambas as máquinas monitoram '{var_comp}' em '{unidade_comp}'."
+                    )
 
-                col_e1, col_e2 = st.columns(2)
-                with col_e1:
-                    st.markdown(f"**{res_e['maquina_a']['nome']}**")
-                    st.write(f"- Média: **{res_e['maquina_a']['media']} {res_e['unidade']}**")
-                    st.write(f"- Desvio Padrão: **{res_e['maquina_a']['desvio_padrao']}**")
-                    st.write(f"- Faixa: [{res_e['maquina_a']['min']} a {res_e['maquina_a']['max']}]")
+                    maq_a_info = res_e.get("maquina_a", {})
+                    maq_b_info = res_e.get("maquina_b", {})
 
-                with col_e2:
-                    st.markdown(f"**{res_e['maquina_b']['nome']}**")
-                    st.write(f"- Média: **{res_e['maquina_b']['media']} {res_e['unidade']}**")
-                    st.write(f"- Desvio Padrão: **{res_e['maquina_b']['desvio_padrao']}**")
-                    st.write(f"- Faixa: [{res_e['maquina_b']['min']} a {res_e['maquina_b']['max']}]")
+                    col_e1, col_e2 = st.columns(2)
+                    with col_e1:
+                        st.markdown(f"**{maq_a_info.get('nome', maquina_selecionada)}**")
+                        st.write(f"- Média: **{maq_a_info.get('media', 'N/A')} {unidade_comp}**")
+                        st.write(f"- Desvio Padrão: **{maq_a_info.get('desvio_padrao', 'N/A')}**")
+                        st.write(f"- Faixa: [{maq_a_info.get('min', 'N/A')} a {maq_a_info.get('max', 'N/A')}]")
 
-                st.caption(f"Nota Técnica: {res_e['ressalva_operacional']}")
+                    with col_e2:
+                        st.markdown(f"**{maq_b_info.get('nome', outra_maquina)}**")
+                        st.write(f"- Média: **{maq_b_info.get('media', 'N/A')} {unidade_comp}**")
+                        st.write(f"- Desvio Padrão: **{maq_b_info.get('desvio_padrao', 'N/A')}**")
+                        st.write(f"- Faixa: [{maq_b_info.get('min', 'N/A')} a {maq_b_info.get('max', 'N/A')}]")
+
+                    if res_e.get("ressalva_operacional"):
+                        st.caption(f"Nota Técnica: {res_e['ressalva_operacional']}")
 
             except ValueError as err:
                 st.error(f"⛔ {err}")
+            except Exception as err:
+                st.warning(f"⚠️ Não foi possível concluir a comparação: {err}")
 
         # ---------------------------------------------------------------------
         # DESAFIO F: LIMITES DA INTERPRETAÇÃO & SUFICIÊNCIA (RF19, RF20)

@@ -343,9 +343,9 @@ def comparar_maquinas(
         )
 
     if df_a.empty or variavel not in df_a.columns:
-        return {"erro": f"Dados ausentes para '{maq_a}' na variável '{variavel}'."}
+        raise ValueError(f"Dados históricos ausentes para '{maq_a}' na variável '{variavel}'.")
     if df_b.empty or variavel not in df_b.columns:
-        return {"erro": f"Dados ausentes para '{maq_b}' na variável '{variavel}'."}
+        raise ValueError(f"Dados históricos ausentes para '{maq_b}' na variável '{variavel}'.")
 
     s_a = df_a[variavel].dropna()
     s_b = df_b[variavel].dropna()
