@@ -21,6 +21,8 @@ secrets.toml
 .idea/
 *.swp
 *.swo
+.agents/
+.claude/
 
 # Streamlit
 .streamlit/
