@@ -173,9 +173,19 @@ with st.sidebar:
         help="Chave de API do Google Gemini. Pode ser configurada via variável de ambiente GEMINI_API_KEY.",
     )
 
+    modelos_disponiveis = [
+        MODELO_GEMINI_PADRAO,
+        "gemini-3.5-flash",
+        "gemini-3.8-flash",
+        "gemini-2.5-flash",
+        "gemini-1.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro",
+    ]
+    modelos_opcoes = list(dict.fromkeys(modelos_disponiveis))
     modelo_selecionado = st.selectbox(
         "Modelo Gemini:",
-        options=["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"],
+        options=modelos_opcoes,
         index=0,
     )
 

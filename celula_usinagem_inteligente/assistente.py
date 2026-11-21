@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import Any
 
 from google import genai
@@ -122,28 +123,57 @@ class AssistenteGemini:
         # Limpa o rastreamento anterior
         coletar_ferramentas_executadas()
 
-        try:
-            # Envia a mensagem ao chat; o SDK gerencia chamadas de função automaticamente
-            resposta = self._chat.send_message(pergunta)
-            texto_resposta = resposta.text if resposta and resposta.text else "O assistente não retornou texto."
+        # Tentativa de envio com retry automático em caso de 503 (alta demanda temporária)
+        tentativas_max = 2
+        ultimo_erro = None
 
-            # Coleta as ferramentas que foram executadas pelo SDK
-            ferramentas_chamadas = coletar_ferramentas_executadas()
+        for tentativa in range(1, tentativas_max + 1):
+            try:
+                # Envia a mensagem ao chat; o SDK gerencia chamadas de função automaticamente
+                resposta = self._chat.send_message(pergunta)
+                texto_resposta = resposta.text if resposta and resposta.text else "O assistente não retornou texto."
 
-            return {
-                "resposta": texto_resposta,
-                "ferramentas_chamadas": ferramentas_chamadas,
-                "status": "sucesso",
-            }
+                # Coleta as ferramentas que foram executadas pelo SDK
+                ferramentas_chamadas = coletar_ferramentas_executadas()
 
-        except Exception as err:
-            logger.exception("Erro ao processar mensagem no Gemini: %s", err)
-            ferramentas_chamadas = coletar_ferramentas_executadas()
-            return {
-                "resposta": (
-                    f"⚠️ Ocorreu uma falha na consulta ao Gemini ou na execução da ferramenta: {err}. "
-                    "Verifique sua conexão e tente novamente."
-                ),
-                "ferramentas_chamadas": ferramentas_chamadas,
-                "status": "erro_execucao",
-            }
+                return {
+                    "resposta": texto_resposta,
+                    "ferramentas_chamadas": ferramentas_chamadas,
+                    "status": "sucesso",
+                }
+
+            except Exception as err:
+                ultimo_erro = err
+                logger.warning(
+                    "Tentativa %d falhou ao chamar Gemini (%s): %s",
+                    tentativa,
+                    self.modelo,
+                    err,
+                )
+                # Se for erro 503 / demanda alta e ainda houver tentativa, aguarda 2s antes de tentar de novo
+                if "503" in str(err) or "high demand" in str(err).lower() or "unavailable" in str(err).lower():
+                    if tentativa < tentativas_max:
+                        time.sleep(2.0)
+                        continue
+
+                break
+
+        logger.exception("Erro definitivo ao processar mensagem no Gemini: %s", ultimo_erro)
+        ferramentas_chamadas = coletar_ferramentas_executadas()
+        
+        msg_erro = str(ultimo_erro)
+        dica = ""
+        if "503" in msg_erro or "high demand" in msg_erro.lower() or "unavailable" in msg_erro.lower():
+            dica = (
+                "\n\n💡 **Dica de Conectividade:** O modelo está enfrentando um pico momentâneo de demanda nos servidores da Google. "
+                "Você pode tentar novamente em alguns segundos ou selecionar outro modelo (ex: `gemini-2.5-flash` ou `gemini-1.5-flash`) "
+                "na barra lateral."
+            )
+
+        return {
+            "resposta": (
+                f"⚠️ Ocorreu uma falha na consulta ao Gemini ou na execução da ferramenta: {ultimo_erro}.{dica}"
+            ),
+            "ferramentas_chamadas": ferramentas_chamadas,
+            "status": "erro_execucao",
+        }

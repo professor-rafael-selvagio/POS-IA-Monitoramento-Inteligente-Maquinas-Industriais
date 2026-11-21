@@ -23,7 +23,7 @@ MAQUINAS_VALIDAS: Final[tuple[str, ...]] = (
 TIMEOUT_PADRAO: Final[int] = int(os.getenv("API_TIMEOUT", "10"))
 
 # Modelo Gemini padrão para Function Calling
-MODELO_GEMINI_PADRAO: Final[str] = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODELO_GEMINI_PADRAO: Final[str] = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
 # Declaração obrigatória sobre a natureza dos dados (RF19, Desafio F)
 DECLARACAO_DADOS_DIDATICOS: Final[str] = (

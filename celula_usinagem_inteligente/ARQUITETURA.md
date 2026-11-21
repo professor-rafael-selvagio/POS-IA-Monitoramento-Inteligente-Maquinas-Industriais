@@ -42,7 +42,7 @@ graph TD
 
     subgraph "Sistemas Externos"
         AIDataLab["Servidor AI DataLab<br/>(http://10.110.18.12:10999)"]
-        GeminiAPI["Google Gemini API<br/>(gemini-2.5-flash)"]
+        GeminiAPI["Google Gemini API<br/>(gemini-3.5-flash)"]
     end
 
     StreamlitApp -->|Consulta Histórico / Latest| APIClient
