@@ -204,12 +204,11 @@ def _normalizar_historico_para_df(dados: Any, maquina: str) -> pd.DataFrame:
     lista_registros: list[dict[str, Any]] = []
 
     if isinstance(dados, dict):
-        # Pode vir encapsulado em {'readings': [...]} ou {'data': [...]}
-        for chave in ("readings", "data", "results", "records"):
+        for chave in ("readings", "data", "results", "records", "history", "items"):
             if chave in dados and isinstance(dados[chave], list):
                 lista_registros = dados[chave]
                 break
-        if not lista_registros and "timestamp" in dados:
+        if not lista_registros and any(k in dados for k in ("timestamp", "readings", "data")):
             lista_registros = [dados]
     elif isinstance(dados, list):
         lista_registros = dados
@@ -219,37 +218,64 @@ def _normalizar_historico_para_df(dados: Any, maquina: str) -> pd.DataFrame:
 
     linhas_limpas = []
     metas = METADADOS_VARIAVEIS.get(maquina, {})
+    mapa_metas = {v.lower(): v for v in metas}
 
-    for item in lista_registros:
+    for idx, item in enumerate(lista_registros):
         if not isinstance(item, dict):
             continue
-        ts = item.get("timestamp") or item.get("horario") or item.get("created_at")
+        ts = (
+            item.get("timestamp")
+            or item.get("horario")
+            or item.get("created_at")
+            or item.get("time")
+            or item.get("data")
+            or item.get("datetime")
+            or item.get("data_hora")
+            or item.get("date")
+        )
+        if not ts:
+            ts = datetime.now() - timedelta(minutes=(len(lista_registros) - idx) * 2)
+
         linha: dict[str, Any] = {"timestamp": ts, "machine_id": maquina}
-
         conteudo = item.get("readings") or item.get("data") or item
-        for var in metas:
-            val = None
-            if var in conteudo:
-                sub = conteudo[var]
-                if isinstance(sub, dict) and "value" in sub:
-                    val = sub["value"]
-                elif isinstance(sub, (int, float)):
-                    val = sub
-            elif var in item:
-                val = item[var]
 
-            if val is not None:
-                try:
-                    linha[var] = float(val)
-                except (ValueError, TypeError):
-                    pass
+        if isinstance(conteudo, dict):
+            for k, val_raw in conteudo.items():
+                k_clean = str(k).lower().strip()
+                var_alvo = mapa_metas.get(k_clean, k_clean)
+
+                if var_alvo in ("timestamp", "machine_id", "machine", "id", "created_at", "simulado"):
+                    continue
+
+                val = None
+                if isinstance(val_raw, dict) and "value" in val_raw:
+                    val = val_raw["value"]
+                elif isinstance(val_raw, (int, float, str)):
+                    try:
+                        val = float(val_raw)
+                    except (ValueError, TypeError):
+                        pass
+
+                if val is not None:
+                    linha[var_alvo] = round(float(val), 3)
 
         linhas_limpas.append(linha)
+
+    if not linhas_limpas:
+        return pd.DataFrame()
 
     df = pd.DataFrame(linhas_limpas)
     if "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-        df = df.dropna(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+        df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.now())
+        df = df.sort_values("timestamp").reset_index(drop=True)
+
+    colunas_numericas = [
+        c for c in df.columns
+        if c not in ("timestamp", "machine_id") and pd.api.types.is_numeric_dtype(df[c])
+    ]
+    if not colunas_numericas:
+        return pd.DataFrame()
 
     return df
 

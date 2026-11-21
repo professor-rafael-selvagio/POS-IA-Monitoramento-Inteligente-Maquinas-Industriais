@@ -297,37 +297,46 @@ with tab_historico:
         st.warning("Histórico não disponível para a máquina e limite selecionados.")
     else:
         variaveis_disponiveis = [
-            c for c in df_hist.columns if c not in ("timestamp", "machine_id")
+            c for c in df_hist.columns
+            if c not in ("timestamp", "machine_id") and pd.api.types.is_numeric_dtype(df_hist[c])
         ]
 
-        with col_ctrl2:
-            # RF09: Seleção da variável para investigação gráfica
-            var_grafico = st.selectbox(
-                "Variável para Visualização Gráfica:",
-                options=variaveis_disponiveis,
-                index=0,
-            )
+        if not variaveis_disponiveis:
+            st.warning("Nenhuma variável numérica disponível no histórico para visualização.")
+        else:
+            with col_ctrl2:
+                # RF09: Seleção da variável para investigação gráfica
+                var_grafico = st.selectbox(
+                    "Variável para Visualização Gráfica:",
+                    options=variaveis_disponiveis,
+                    index=0,
+                )
 
-        meta_var = METADADOS_VARIAVEIS.get(maquina_selecionada, {}).get(var_grafico, {})
-        unidade_var = meta_var.get("unidade", "")
-        nome_var = meta_var.get("nome_exibicao", var_grafico)
+            if var_grafico and var_grafico in df_hist.columns:
+                meta_var = METADADOS_VARIAVEIS.get(maquina_selecionada, {}).get(var_grafico, {})
+                unidade_var = meta_var.get("unidade", "")
+                nome_var = meta_var.get("nome_exibicao", var_grafico)
 
-        st.markdown(f"#### Evolução Temporal: **{nome_var}** ({unidade_var})")
+                st.markdown(f"#### Evolução Temporal: **{nome_var}** ({unidade_var})")
 
-        # Gráfico interativo com marcação temporal (RF08)
-        chart_data = df_hist[["timestamp", var_grafico]].set_index("timestamp")
-        st.line_chart(chart_data, color="#38bdf8", use_container_width=True)
+                # Gráfico interativo com marcação temporal seguro (RF08)
+                colunas_plot = [c for c in ["timestamp", var_grafico] if c in df_hist.columns]
+                if "timestamp" in colunas_plot and len(colunas_plot) == 2:
+                    chart_data = df_hist[colunas_plot].set_index("timestamp")
+                    st.line_chart(chart_data, color="#38bdf8")
+                else:
+                    st.line_chart(df_hist[[var_grafico]], color="#38bdf8")
 
-        # Tabela com histórico completo (RF08)
-        with st.expander(f"📋 Ver Tabela de Dados Históricos ({len(df_hist)} registros)"):
-            st.dataframe(df_hist, use_container_width=True)
-            csv_data = df_hist.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="📥 Baixar Dados em CSV",
-                data=csv_data,
-                file_name=f"historico_{maquina_selecionada}_{var_grafico}.csv",
-                mime="text/csv",
-            )
+                # Tabela com histórico completo (RF08)
+                with st.expander(f"📋 Ver Tabela de Dados Históricos ({len(df_hist)} registros)"):
+                    st.dataframe(df_hist, use_container_width=True)
+                    csv_data = df_hist.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        label="📥 Baixar Dados em CSV",
+                        data=csv_data,
+                        file_name=f"historico_{maquina_selecionada}_{var_grafico}.csv",
+                        mime="text/csv",
+                    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -338,12 +347,18 @@ with tab_analise:
     st.subheader("Motor de Análise Estatística Industrial")
     st.caption("Cálculos matemáticos puros para fundamentar intervenções de manutenção.")
 
-    if df_hist.empty:
-        st.warning("Carregue o histórico para habilitar as ferramentas analíticas.")
+    variaveis_analise = (
+        [c for c in df_hist.columns if c not in ("timestamp", "machine_id") and pd.api.types.is_numeric_dtype(df_hist[c])]
+        if not df_hist.empty
+        else []
+    )
+
+    if df_hist.empty or not variaveis_analise:
+        st.warning("Carregue o histórico com variáveis numéricas válidas para habilitar as ferramentas analíticas.")
     else:
         var_analise = st.selectbox(
             "Selecione a Grandeza para Diagnóstico:",
-            options=variaveis_disponiveis,
+            options=variaveis_analise,
             key="sb_var_analise",
         )
 
@@ -444,10 +459,14 @@ with tab_analise:
 
             st.info(f"**Análise de Tendência:** {res_d['direcao_tendencia']}")
 
-            # Gráfico com série real e reta ajustada
-            df_plot_d = df_hist[["timestamp", var_analise]].copy()
+            # Gráfico com série real e reta ajustada seguro contra KeyError
+            colunas_d = [c for c in ["timestamp", var_analise] if c in df_hist.columns]
+            df_plot_d = df_hist[colunas_d].copy()
             df_plot_d["Reta de Tendência (OLS)"] = res_d.get("valores_ajustados", [])
-            st.line_chart(df_plot_d.set_index("timestamp"), use_container_width=True)
+            if "timestamp" in df_plot_d.columns:
+                st.line_chart(df_plot_d.set_index("timestamp"))
+            else:
+                st.line_chart(df_plot_d)
 
         # ---------------------------------------------------------------------
         # DESAFIO E: COMPARAÇÃO ENTRE MÁQUINAS (RF14)
